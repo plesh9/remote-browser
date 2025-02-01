@@ -35,7 +35,7 @@ const RemoteBrowser: React.FC = () => {
             console.error("Error parsing WebSocket message:", err);
           }
         } else {
-          const blob = new Blob([event.data], { type: "image/png" });
+          const blob = new Blob([event.data], { type: "image/webp" });
           const newScreenshot = URL.createObjectURL(blob);
           setScreenshot(newScreenshot);
         }
@@ -112,6 +112,10 @@ const RemoteBrowser: React.FC = () => {
     socketRef.current.send(JSON.stringify(event));
   };
 
+  const handleBlur = (_e: React.FocusEvent<HTMLDivElement>) => {
+    sendEvent({ type: "blur" });
+  };
+
   return (
     <div
       style={{
@@ -132,6 +136,7 @@ const RemoteBrowser: React.FC = () => {
       {screenshot && (
         <div
           style={{
+            position: "relative",
             width: WINDOW_SIZE.width,
             height: WINDOW_SIZE.height,
             backgroundColor: "rgb(98 98 98)",
@@ -146,6 +151,7 @@ const RemoteBrowser: React.FC = () => {
           onClick={handleMouseClick}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
+          onBlur={handleBlur}
           tabIndex={0}
         >
           <img
@@ -153,9 +159,12 @@ const RemoteBrowser: React.FC = () => {
             alt="Remote Browser"
             draggable={false}
             style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
               pointerEvents: "none",
-              width: WINDOW_SIZE.width,
-              height: WINDOW_SIZE.height,
             }}
           />
         </div>
