@@ -30,10 +30,25 @@ app.post("/api/open-url", async (req: any, res: any) => {
   }
 });
 
+function compareUint8Arrays(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+
 wss.on("connection", (ws) => {
+  let lastScreenshot: Uint8Array | null = null;
+
   const sendScreenshot = async () => {
-    const screenshot = await browserManager.getScreenshot();
+    const screenshot: Uint8Array | null = await browserManager.getScreenshot();
     if (screenshot && ws.readyState === ws.OPEN) {
+      if (lastScreenshot && compareUint8Arrays(lastScreenshot, screenshot)) {
+        return;
+      }
+      lastScreenshot = screenshot;
       ws.send(screenshot);
     }
   };
@@ -53,6 +68,8 @@ wss.on("connection", (ws) => {
         await browserManager.handleSelectAllEvent();
       } else if (event.type === "copyText") {
         await browserManager.handleCopyTextEvent(ws);
+      } else if (event.type === "blur") {
+        await browserManager.handleBlurEvent(); 
       }
     } catch (err) {
       console.error("Error handling message:", err);

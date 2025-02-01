@@ -89,7 +89,7 @@ export class BrowserManager {
       return await this.page!.screenshot({
         encoding: "binary",
         type: "webp",
-        quality: 100,
+        quality: 99,
       });
     }
 
@@ -150,6 +150,17 @@ export class BrowserManager {
 
     if (copiedText.trim()) {
       ws.send(JSON.stringify({ type: "copyText", text: copiedText }));
+    }
+  }
+
+  async handleBlurEvent() {
+    if (this.page) {
+      await this.page.evaluate(() => {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl instanceof HTMLElement) {
+          activeEl.blur();
+        }
+      });
     }
   }
 
