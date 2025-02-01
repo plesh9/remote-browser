@@ -12,13 +12,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@roamhq/wrtc": "^0.8.0",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "node-webrtc": "^0.0.0",
     "puppeteer": "^24.1.1",
-    "puppeteer-stream": "^3.0.19",
     "ws": "^8.18.0"
   },
   "devDependencies": {

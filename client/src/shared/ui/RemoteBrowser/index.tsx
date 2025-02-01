@@ -1,18 +1,18 @@
 import React, { useRef, useState } from "react";
 
-const WINDOW_SIZE = { width: 1200, height: 800 };
+const WINDOW_SIZE = { width: 375, height: 667 };
+const ONLYFANS_URL = "https://onlyfans.com/";
 
 const RemoteBrowser: React.FC = () => {
-  const [url, setUrl] = useState("https://onlyfans.com/");
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [screenshot, setScreenshot] = useState<string | null>(null);
 
   const handleConnect = async () => {
     const response = await fetch("http://localhost:4000/api/open-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: ONLYFANS_URL }),
     });
     const data = await response.json();
     if (response.ok) {
@@ -23,11 +23,21 @@ const RemoteBrowser: React.FC = () => {
         setConnected(true);
       };
 
-      socketRef.current.onmessage = (event) => {
-        const blob = new Blob([event.data], { type: "image/png" });
-        const url = URL.createObjectURL(blob);
-        if (imgRef.current) {
-          imgRef.current.src = url;
+      socketRef.current.onmessage = async (event) => {
+        if (typeof event.data === "string") {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === "copyText") {
+              await navigator.clipboard.writeText(message.text);
+              console.log(`Copied to clipboard: ${message.text}`);
+            }
+          } catch (err) {
+            console.error("Error parsing WebSocket message:", err);
+          }
+        } else {
+          const blob = new Blob([event.data], { type: "image/png" });
+          const newScreenshot = URL.createObjectURL(blob);
+          setScreenshot(newScreenshot);
         }
       };
 
@@ -41,8 +51,11 @@ const RemoteBrowser: React.FC = () => {
   };
 
   const handleMouseClick = (e: React.MouseEvent) => {
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       return;
+    }
+
+    e.preventDefault();
 
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -57,81 +70,92 @@ const RemoteBrowser: React.FC = () => {
     socketRef.current.send(JSON.stringify(event));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)
+  const sendEvent = (eventData: object) => {
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       return;
+    }
+      
+    socketRef.current.send(JSON.stringify(eventData));
+  };
 
-    const isControlKey = e.ctrlKey || e.metaKey
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.preventDefault();
 
-    if (isControlKey && e.key === "v") {
-      navigator.clipboard.readText().then((text) => {
-        if (text) {
-          const pasteEvent = {
-            type: "paste",
-            text,
-          };
-          socketRef.current?.send(JSON.stringify(pasteEvent));
-        }
-      });
-    } else {
-      const event = {
-        type: "keyboard",
-        eventType: "keydown",
-        key: e.key,
-      };
-      socketRef.current.send(JSON.stringify(event));
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === "c") {
+        sendEvent({ type: "copyText" });
+      } else if (e.key === "v") {
+        navigator.clipboard.readText().then((text) => {
+          sendEvent({ type: "paste", text });
+        });
+      } else if (e.key === "a") {
+        sendEvent({ type: "selectAll" });
+      }
+    }  else {
+      sendEvent({ type: "keyboard", eventType: "keydown", key: e.key });
     }
   };
 
   const handleKeyUp = (e: React.KeyboardEvent) => {
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN)
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       return;
+    }
+
+    e.preventDefault();
 
     const event = {
       type: "keyboard",
       eventType: "keyup",
       key: e.key,
     };
+
     socketRef.current.send(JSON.stringify(event));
   };
 
   return (
-    <div>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        gap: "24px",
+        padding: "20px",
+      }}
+    >
       <h1>Login OnlyFans</h1>
       <div>
-        {/* <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Enter URL"
-          style={{ width: "300px" }}
-        /> */}
         <button onClick={handleConnect} disabled={connected}>
           Login
         </button>
       </div>
-      {connected && (
+      {screenshot && (
         <div
           style={{
+            width: WINDOW_SIZE.width,
+            height: WINDOW_SIZE.height,
+            backgroundColor: "rgb(98 98 98)",
+            borderRadius: "12px",
+            overflow: "hidden",
             userSelect: "none",
+            outline: "none",
+            border: "1px solid rgb(51 51 51)",
             cursor: "crosshair",
             display: "inline-flex",
-            marginTop: "20px",
           }}
           onClick={handleMouseClick}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
-          tabIndex={0} // Для отримання подій клавіатури
+          tabIndex={0}
         >
           <img
-            ref={imgRef}
+            src={screenshot}
             alt="Remote Browser"
             draggable={false}
             style={{
               pointerEvents: "none",
               width: WINDOW_SIZE.width,
               height: WINDOW_SIZE.height,
-              border: "1px solid #000",
             }}
           />
         </div>
