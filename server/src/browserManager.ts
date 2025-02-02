@@ -26,7 +26,7 @@ export class BrowserManager {
     });
     await this.page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await this.page.waitForSelector("#app", { timeout: 1000 });
+    await this.page.waitForSelector("#app", { timeout: 3000 });
 
     await this.page.evaluate(() => {
       document.cookie.split(";").forEach(function (c) {
@@ -88,8 +88,7 @@ export class BrowserManager {
     if (this.page) {
       return await this.page!.screenshot({
         encoding: "binary",
-        type: "webp",
-        quality: 99,
+        type: "png",
       });
     }
 

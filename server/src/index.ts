@@ -4,12 +4,29 @@ import { Server } from "ws";
 import bodyParser from "body-parser";
 import cors from "cors";
 import { BrowserManager } from "./browserManager";
+import crypto from "crypto";
 
 const app = express();
 const server = http.createServer(app);
 const wss = new Server({ server });
 
 const browserManager = new BrowserManager();
+
+const CRYPTO_KEY = "8gkL1@6z4mF0Q9$Pb2rXnC5Vd7jW3E0Q";
+const SCREENSHOT_MESSAGE_TYPE = "kL3pRx";
+
+function encryptBuffer(buffer: Buffer): Buffer {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(
+    "aes-256-gcm",
+    Buffer.from(CRYPTO_KEY),
+    iv
+  );
+  const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return Buffer.concat([iv, encrypted, tag]);
+}
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -38,7 +55,6 @@ function compareUint8Arrays(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-
 wss.on("connection", (ws) => {
   let lastScreenshot: Uint8Array | null = null;
 
@@ -49,7 +65,11 @@ wss.on("connection", (ws) => {
         return;
       }
       lastScreenshot = screenshot;
-      ws.send(screenshot);
+      const encryptedScreenshot = encryptBuffer(Buffer.from(screenshot));
+      const base64Data = encryptedScreenshot.toString("base64");
+      ws.send(
+        JSON.stringify({ type: SCREENSHOT_MESSAGE_TYPE, data: base64Data })
+      );
     }
   };
 
@@ -69,7 +89,7 @@ wss.on("connection", (ws) => {
       } else if (event.type === "copyText") {
         await browserManager.handleCopyTextEvent(ws);
       } else if (event.type === "blur") {
-        await browserManager.handleBlurEvent(); 
+        await browserManager.handleBlurEvent();
       }
     } catch (err) {
       console.error("Error handling message:", err);
