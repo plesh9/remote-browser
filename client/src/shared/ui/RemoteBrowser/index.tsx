@@ -16,6 +16,14 @@ const RemoteBrowser: React.FC = () => {
     const HARD_CODED_LOGIN = "laxow51879@minduls.com";
     const HARD_CODED_PASSWORD = "OnlyMonsters99";
 
+    const deviceWidth = window.innerWidth;
+    const deviceHeight = window.innerHeight;
+    const deviceUserAgent = navigator.userAgent;
+
+    console.log('deviceWidth', deviceWidth);
+    console.log('deviceHeight', deviceHeight);
+    console.log('deviceUserAgent', deviceUserAgent);
+
     const handleConnect = async () => {
         if (socketRef.current) return;
 
@@ -25,19 +33,22 @@ const RemoteBrowser: React.FC = () => {
             console.log("Socket.IO connected");
             setConnected(true);
 
-            socketRef.current?.emit(WS_EVENTS.MOBILE_START_LISTENING, {
+            socketRef.current?.emit(WS_EVENTS.mobileStartLogin, {
                 // ofEmail: login,
                 ofEmail: HARD_CODED_LOGIN,
                 // ofPassword: password,
                 ofPassword: HARD_CODED_PASSWORD,
                 creatorId: "creator_id",
-                deviceWidth: 390,
-                deviceHeight: 844,
-                deviceUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+                // deviceWidth: 390,
+                // deviceHeight: 844,
+                // deviceUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+                deviceWidth,
+                deviceHeight,
+                deviceUserAgent,
             });
         });
 
-        socketRef.current.on(WS_EVENTS.MOBILE_START_LISTENING, async (message) => {
+        socketRef.current.on(WS_EVENTS.mobileCaptchaScreenshot, async (message) => {
             try {
                 if (!message.image) {
                     console.error("No image received in the WebSocket message!");
@@ -64,101 +75,16 @@ const RemoteBrowser: React.FC = () => {
         // }
     };
 
-    const sendEvent = (eventData: object) => {
-        if (!socketRef.current || !socketRef.current.connected) return;
-        socketRef.current.emit("event", eventData);
-    };
-
-    // const handleMouseClick = (e: React.MouseEvent) => {
-    //     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-    //         return;
-    //     }
-    //
-    //     e.preventDefault();
-    //
-    //     const rect = (e.target as HTMLElement).getBoundingClientRect();
-    //     const x = e.clientX - rect.left;
-    //     const y = e.clientY - rect.top;
-    //
-    //     const event = {
-    //         type: "mouse",
-    //         eventType: "click",
-    //         x,
-    //         y,
-    //     };
-    //     socketRef.current.send(JSON.stringify(event));
-    // };
-
-    const handleMouseClick = (e: React.MouseEvent) => {
-        e.preventDefault();
-        if (!canvasRef.current) return;
+    const handleMouseAction = (type: "move" | "down" | "up" | "click", e: React.MouseEvent) => {
+        if (!canvasRef.current || !socketRef.current) return;
 
         const rect = canvasRef.current.getBoundingClientRect();
-        sendEvent({type: "mouse", eventType: "click", x: e.clientX - rect.left, y: e.clientY - rect.top});
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        socketRef.current.emit(WS_EVENTS.mobileMouseAction, {type, x, y});
     };
 
-    // const handleKeyDown = (e: React.KeyboardEvent) => {
-    //     e.preventDefault();
-    //
-    //     if (e.ctrlKey || e.metaKey) {
-    //         if (e.key === "c") {
-    //             sendEvent({type: "copyText"});
-    //         } else if (e.key === "v") {
-    //             navigator.clipboard.readText().then((text) => {
-    //                 sendEvent({type: "paste", text});
-    //             });
-    //         } else if (e.key === "a") {
-    //             sendEvent({type: "selectAll"});
-    //         }
-    //     } else {
-    //         sendEvent({type: "keyboard", eventType: "keydown", key: e.key});
-    //     }
-    // };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        e.preventDefault();
-
-        if (e.ctrlKey || e.metaKey) {
-            if (e.key === "c") sendEvent({type: "copyText"});
-            else if (e.key === "v") navigator.clipboard.readText().then((text) => sendEvent({type: "paste", text}));
-            else if (e.key === "a") sendEvent({type: "selectAll"});
-        } else {
-            sendEvent({type: "keyboard", eventType: "keydown", key: e.key});
-        }
-    };
-
-    // const handleKeyUp = (e: React.KeyboardEvent) => {
-    //     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-    //         return;
-    //     }
-    //
-    //     e.preventDefault();
-    //
-    //     const event = {
-    //         type: "keyboard",
-    //         eventType: "keyup",
-    //         key: e.key,
-    //     };
-    //
-    //     socketRef.current.send(JSON.stringify(event));
-    // };
-
-    const handleKeyUp = (e: React.KeyboardEvent) => {
-        e.preventDefault();
-        sendEvent({type: "keyboard", eventType: "keyup", key: e.key});
-    };
-
-    const handleBlur = () => {
-        sendEvent({type: "blur"});
-    };
-
-    // useEffect(() => {
-    //     importKey()
-    //         .then(setCryptoKey)
-    //         .catch((err) => {
-    //             console.error("Failed to import crypto key:", err);
-    //         });
-    // }, []);
 
     useEffect(() => {
         if (!imageBitmap || !canvasRef.current) {
@@ -226,10 +152,10 @@ const RemoteBrowser: React.FC = () => {
                         cursor: "crosshair",
                         display: "inline-flex",
                     }}
-                    onClick={handleMouseClick}
-                    onKeyDown={handleKeyDown}
-                    onKeyUp={handleKeyUp}
-                    onBlur={handleBlur}
+                    onMouseMove={(e) => handleMouseAction("move", e)}
+                    onMouseDown={(e) => handleMouseAction("down", e)}
+                    onMouseUp={(e) => handleMouseAction("up", e)}
+                    onClick={(e) => handleMouseAction("click", e)}
                     tabIndex={0}
                 />
             )}

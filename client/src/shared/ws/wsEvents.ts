@@ -1,3 +1,5 @@
 export const WS_EVENTS = {
-    MOBILE_START_LISTENING: "mobile_start_login"
+    mobileCaptchaScreenshot: 'mobile_captcha_screenshot',
+    mobileMouseAction: 'mobile_mouse_action',
+    mobileStartLogin: 'mobile_start_login',
 };
