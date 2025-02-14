@@ -133,6 +133,36 @@ export class BrowserManager {
 
   async getScreenshot() {
     if (this.page) {
+      const isCaptchaCompleted = await this.page.evaluate(() => {
+        if (!document.querySelector(".captcha_wrapper")) {
+          return true;
+        }
+
+        const isSubmitButtonDisabled =
+          document
+            .querySelector(".g-btn.m-rounded.m-block")
+            ?.getAttribute("disabled") === "disabled";
+
+        if (isSubmitButtonDisabled) {
+          return false;
+        }
+
+        const isCaptchaError = document.querySelector(
+          ".g-input__help.error_place"
+        );
+
+        if (isCaptchaError) {
+          return false;
+        }
+
+        return true;
+      });
+
+      if (isCaptchaCompleted) {
+        console.log("Капча виконана.");
+        return null;
+      }
+
       const captchaModalSelector = 'iframe[src*="recaptcha/enterprise/bframe"]';
 
       const iframeElement = await this.page.$(captchaModalSelector);
@@ -172,7 +202,7 @@ export class BrowserManager {
           width: boundingBox.width,
           height: boundingBox.height,
         },
-      })
+      });
 
       return {
         screenshotBuffer,
