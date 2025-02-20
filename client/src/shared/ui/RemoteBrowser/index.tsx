@@ -1,14 +1,20 @@
 import React, {useEffect, useRef, useState} from "react";
 import {io, Socket} from "socket.io-client";
 import {WS_EVENTS} from "../../ws/wsEvents.ts";
+import {MobileCaptchaScreenshotEventArgs} from "../../MobileCaptchaScreenshotEventArgs.ts";
+import {MobileLoginStatus} from "../../MobileLoginStatus.ts";
 
-const WINDOW_SIZE = {width: 375, height: 667};
+// const WINDOW_SIZE = {width: 375, height: 667};
 
 const RemoteBrowser: React.FC = () => {
     const [connected, setConnected] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [imageBitmap, setImageBitmap] = useState<ImageBitmap | null>(null);
+    const [screenshotData, setScreenshotData] = useState<{
+        imageBitmap: ImageBitmap;
+        width: number;
+        height: number;
+    } | null>(null);
 
     const [login, setLogin] = useState("");
     const [password, setPassword] = useState("");
@@ -39,16 +45,14 @@ const RemoteBrowser: React.FC = () => {
                 // ofPassword: password,
                 ofPassword: HARD_CODED_PASSWORD,
                 creatorId: "creator_id",
-                // deviceWidth: 390,
-                // deviceHeight: 844,
+                deviceWidth: window.innerWidth,
+                deviceHeight: window.innerHeight,
+                deviceUserAgent: window.navigator.userAgent,
                 // deviceUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
-                deviceWidth,
-                deviceHeight,
-                deviceUserAgent,
             });
         });
 
-        socketRef.current.on(WS_EVENTS.mobileCaptchaScreenshot, async (message) => {
+        socketRef.current.on(WS_EVENTS.mobileCaptchaScreenshot, async (message: MobileCaptchaScreenshotEventArgs) => {
             try {
                 if (!message.image) {
                     console.error("No image received in the WebSocket message!");
@@ -59,11 +63,22 @@ const RemoteBrowser: React.FC = () => {
 
                 const imageBitmap = await createImageBitmap(imageBlob);
 
-                setImageBitmap(imageBitmap);
+                setScreenshotData({
+                    imageBitmap,
+                    width: Number(message.screenshotWidth),
+                    height: Number(message.screenshotHeight),
+                });
             } catch (error) {
                 console.error("Failed to process screenshot:", error);
             }
         });
+
+        socketRef.current.on(WS_EVENTS.mobileLoginStatus, (input: MobileLoginStatus) => {
+                if (input === MobileLoginStatus.LOGGED_IN) {
+                    console.log("Login successful!");
+                }
+            }
+        )
 
         socketRef.current.on("disconnect", () => {
             console.log("Socket.IO disconnected");
@@ -75,7 +90,7 @@ const RemoteBrowser: React.FC = () => {
         // }
     };
 
-    const handleMouseAction = (type: "move" | "down" | "up" | "click", e: React.MouseEvent) => {
+    const handleMouseAction = (type: "click", e: React.MouseEvent) => {
         if (!canvasRef.current || !socketRef.current) return;
 
         const rect = canvasRef.current.getBoundingClientRect();
@@ -87,23 +102,33 @@ const RemoteBrowser: React.FC = () => {
 
 
     useEffect(() => {
-        if (!imageBitmap || !canvasRef.current) {
+        if (!screenshotData || !canvasRef.current) {
             console.warn("No imageBitmap or canvas found.");
             return;
         }
 
         console.log("Drawing image on canvas...");
 
-        const ctx = canvasRef.current.getContext("2d");
-        if (!ctx) {
-            console.error("Canvas context is null!");
-            return;
-        }
+        const drawImageOnCanvas = (imageBitmap: ImageBitmap) => {
+            const canvas = canvasRef.current;
 
-        canvasRef.current.width = imageBitmap.width;
-        canvasRef.current.height = imageBitmap.height;
-        ctx.drawImage(imageBitmap, 0, 0);
-    }, [imageBitmap]);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+
+            canvas.width = imageBitmap.width;
+            canvas.height = imageBitmap.height;
+            canvas.style.width = `${screenshotData.width}px`;
+            canvas.style.height = `${screenshotData.height}px`;
+
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(imageBitmap, 0, 0);
+        };
+
+        drawImageOnCanvas(screenshotData?.imageBitmap);
+    }, [screenshotData]);
 
     return (
         <div
@@ -136,13 +161,11 @@ const RemoteBrowser: React.FC = () => {
             <button onClick={handleConnect} disabled={connected}>
                 Login
             </button>
-            {imageBitmap && (
+            {screenshotData && (
                 <canvas
                     ref={canvasRef}
                     style={{
                         position: "relative",
-                        width: WINDOW_SIZE.width,
-                        height: WINDOW_SIZE.height,
                         backgroundColor: "rgb(98, 98, 98)",
                         borderRadius: "12px",
                         overflow: "hidden",
@@ -152,9 +175,6 @@ const RemoteBrowser: React.FC = () => {
                         cursor: "crosshair",
                         display: "inline-flex",
                     }}
-                    onMouseMove={(e) => handleMouseAction("move", e)}
-                    onMouseDown={(e) => handleMouseAction("down", e)}
-                    onMouseUp={(e) => handleMouseAction("up", e)}
                     onClick={(e) => handleMouseAction("click", e)}
                     tabIndex={0}
                 />
