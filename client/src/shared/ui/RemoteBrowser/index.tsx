@@ -20,7 +20,7 @@ const RemoteBrowser: React.FC = () => {
     const [password, setPassword] = useState("");
 
     const HARD_CODED_LOGIN = "laxow51879@minduls.com";
-    const HARD_CODED_PASSWORD = "OnlyMonsters99";
+    const HARD_CODED_PASSWORD = "OnlyMonsters99_FFFFF";
 
     const deviceWidth = window.innerWidth;
     const deviceHeight = window.innerHeight;
@@ -73,12 +73,22 @@ const RemoteBrowser: React.FC = () => {
             }
         });
 
-        socketRef.current.on(WS_EVENTS.mobileLoginStatus, (input: MobileLoginStatus) => {
-                if (input === MobileLoginStatus.LOGGED_IN) {
+        socketRef.current.on(WS_EVENTS.mobileLoginStatus, (input: {
+            status: MobileLoginStatus,
+            errMessage?: string
+        }) => {
+            switch (input.status) {
+                case MobileLoginStatus.LOGGED_IN:
                     console.log("Login successful!");
-                }
+                    break;
+                case MobileLoginStatus.ERROR:
+                    if (input.errMessage) console.error(`Login error: ${input.errMessage}`);
+                    break;
+                case MobileLoginStatus.CLOSED_BROWSER:
+                    console.log("Browser closed!");
+                    break;
             }
-        )
+        });
 
         socketRef.current.on("disconnect", () => {
             console.log("Socket.IO disconnected");
