@@ -20,7 +20,7 @@ const RemoteBrowser: React.FC = () => {
     const [password, setPassword] = useState("");
 
     const HARD_CODED_LOGIN = "laxow51879@minduls.com";
-    const HARD_CODED_PASSWORD = "OnlyMonsters99_FFFFF";
+    const HARD_CODED_PASSWORD = "OnlyMonsters99";
 
     const deviceWidth = window.innerWidth;
     const deviceHeight = window.innerHeight;
