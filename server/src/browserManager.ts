@@ -17,11 +17,12 @@ export class BrowserManager {
     this.browser = await puppeteer.launch({
       headless: false,
       args: [
-        `
-        --window-size=;${deviceWidth},${deviceHeight}`,
+        `--window-size=;${deviceWidth},${deviceHeight}`,
         "--disable-infobars",
         "--mute-audio",
         "--disable-features=TranslateUI",
+        "--disable-gpu", 
+        "--disable-software-rasterizer"
       ],
     });
     this.page = await this.browser.newPage();
