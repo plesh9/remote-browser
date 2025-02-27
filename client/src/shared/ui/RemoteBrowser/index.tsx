@@ -3,6 +3,8 @@ import {io, Socket} from "socket.io-client";
 import {WS_EVENTS} from "../../ws/wsEvents.ts";
 import {MobileCaptchaScreenshotEventArgs} from "../../MobileCaptchaScreenshotEventArgs.ts";
 import {MobileLoginStatus} from "../../MobileLoginStatus.ts";
+import {MobileMouseEvent} from "../../types/MobileMouseActionInput.ts";
+import {encryptMessage} from "../../aes.ts";
 
 // const WINDOW_SIZE = {width: 375, height: 667};
 
@@ -21,6 +23,9 @@ const RemoteBrowser: React.FC = () => {
 
     const HARD_CODED_LOGIN = "laxow51879@minduls.com";
     const HARD_CODED_PASSWORD = "OnlyMonsters99";
+    const userId = "667d42ab8d05f0551b300c2a";
+    const creatorId = "66ec47016cf8a5aa395bee80";
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2N2Q0MmFiOGQwNWYwNTUxYjMwMGMyYSIsIm5hbWUiOiJWbGFkISIsImlhdCI6MTc0MDY2MDQwNywiZXhwIjoxNzQzMjUyNDA3fQ.QjSQkCb0zhyKgIEihoGtONo8fKuZaIDuYM-VLJ6LWL4';
 
     const deviceWidth = window.innerWidth;
     const deviceHeight = window.innerHeight;
@@ -33,22 +38,24 @@ const RemoteBrowser: React.FC = () => {
     const handleConnect = async () => {
         if (socketRef.current) return;
 
-        socketRef.current = io("ws://localhost:4000");
+        socketRef.current = io("ws://localhost:4000", {
+            transports: ["websocket"],
+            auth: {
+                token: token,
+            }
+        });
 
         socketRef.current.on("connect", () => {
             console.log("Socket.IO connected");
             setConnected(true);
 
             socketRef.current?.emit(WS_EVENTS.mobileStartLogin, {
-                // ofEmail: login,
                 ofEmail: HARD_CODED_LOGIN,
-                // ofPassword: password,
                 ofPassword: HARD_CODED_PASSWORD,
-                creatorId: "creator_id",
+                creatorId,
                 deviceWidth: window.innerWidth,
                 deviceHeight: window.innerHeight,
                 deviceUserAgent: window.navigator.userAgent,
-                // deviceUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
             });
         });
 
@@ -100,14 +107,16 @@ const RemoteBrowser: React.FC = () => {
         // }
     };
 
-    const handleMouseAction = (type: "click", e: React.MouseEvent) => {
+    const handleMouseAction = async (type: MobileMouseEvent.CLICK, e: React.MouseEvent) => {
         if (!canvasRef.current || !socketRef.current) return;
 
         const rect = canvasRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        socketRef.current.emit(WS_EVENTS.mobileMouseAction, {type, x, y});
+        const encryptedData = await encryptMessage({type, x, y}, creatorId, userId);
+
+        socketRef.current.emit(WS_EVENTS.mobileMouseAction, {encryptedData, creatorId});
     };
 
 
@@ -185,7 +194,7 @@ const RemoteBrowser: React.FC = () => {
                         cursor: "crosshair",
                         display: "inline-flex",
                     }}
-                    onClick={(e) => handleMouseAction("click", e)}
+                    onClick={(e) => handleMouseAction(MobileMouseEvent.CLICK, e)}
                     tabIndex={0}
                 />
             )}
