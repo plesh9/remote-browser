@@ -1,4 +1,5 @@
 import {MobileCaptchaScreenshotEventArgs} from "./MobileCaptchaScreenshotEventArgs.ts";
+import {SocketIoMobileLoginStatusInput} from "./types/SocketIoMobileLoginStatusInput.ts";
 
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
@@ -30,7 +31,11 @@ export const encryptMessage = async (message: object, creatorId: string, userId:
     return btoa(String.fromCharCode(...iv) + String.fromCharCode(...new Uint8Array(encrypted)));
 }
 
-export const decryptMessage = async (encryptedBase64: string, creatorId: string, userId: string): Promise<MobileCaptchaScreenshotEventArgs> => {
+export const decryptMessage = async (
+    encryptedBase64: string,
+    creatorId: string,
+    userId: string
+): Promise<MobileCaptchaScreenshotEventArgs | SocketIoMobileLoginStatusInput> => {
     const encryptedBuffer = Uint8Array.from(atob(encryptedBase64), (c) => c.charCodeAt(0));
 
     const iv = encryptedBuffer.subarray(0, IV_LENGTH);
@@ -52,6 +57,16 @@ export const decryptMessage = async (encryptedBase64: string, creatorId: string,
     const decryptedText = new TextDecoder().decode(decryptedBuffer);
     console.log("🔓 Decrypted Data:", decryptedText);
 
-    return JSON.parse(decryptedText);
+    const parsedData = JSON.parse(decryptedText);
+
+    // 🔎 Use type guards to identify response type
+    if ("image" in parsedData && "screenshotWidth" in parsedData) {
+        return parsedData as MobileCaptchaScreenshotEventArgs;
+    } else if ("status" in parsedData) {
+        return parsedData as SocketIoMobileLoginStatusInput;
+    }
+
+    throw new Error("❌ Unknown decrypted data format");
 };
+
 

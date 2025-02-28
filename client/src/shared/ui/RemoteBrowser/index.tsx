@@ -59,33 +59,44 @@ const RemoteBrowser: React.FC = () => {
         socketRef.current.on(WS_EVENTS.mobileCaptchaScreenshot, async (message) => {
             try {
                 const decryptedMessage = await decryptMessage(message, creatorId, userId);
-                const imageBlob = await fetch(`data:${decryptedMessage.contentType};base64,${decryptedMessage.image}`).then(res => res.blob());
-                const imageBitmap = await createImageBitmap(imageBlob);
+                if ("image" in decryptedMessage) {
+                    const imageBlob = await fetch(`data:${decryptedMessage.contentType};base64,${decryptedMessage.image}`).then(res => res.blob());
+                    const imageBitmap = await createImageBitmap(imageBlob);
 
-                setScreenshotData({
-                    imageBitmap,
-                    width: Number(decryptedMessage.screenshotWidth),
-                    height: Number(decryptedMessage.screenshotHeight),
-                });
+                    setScreenshotData({
+                        imageBitmap,
+                        width: Number(decryptedMessage.screenshotWidth),
+                        height: Number(decryptedMessage.screenshotHeight),
+                    });
+                } else {
+                    console.error("❌ Unexpected response format for mobileCaptchaScreenshot");
+                }
             } catch (error) {
                 console.error("Failed to process screenshot:", error);
             }
         });
 
-        socketRef.current.on(WS_EVENTS.mobileLoginStatus, (input: {
-            status: MobileLoginStatus,
-            errMessage?: string
-        }) => {
-            switch (input.status) {
-                case MobileLoginStatus.LOGGED_IN:
-                    console.log("Login successful!");
-                    break;
-                case MobileLoginStatus.ERROR:
-                    if (input.errMessage) console.error(`Login error: ${input.errMessage}`);
-                    break;
-                case MobileLoginStatus.CLOSED_BROWSER:
-                    console.log("Browser closed!");
-                    break;
+        socketRef.current.on(WS_EVENTS.mobileLoginStatus, async (encryptedMessage) => {
+            const decryptedMessage = await decryptMessage(encryptedMessage, creatorId, userId);
+
+            if ("status" in decryptedMessage) {
+                switch (decryptedMessage.status) {
+                    case MobileLoginStatus.LOGGED_IN:
+                        console.log("✅ Login successful!");
+                        break;
+                    case MobileLoginStatus.ERROR:
+                        if (decryptedMessage.errMessage) {
+                            console.error(`❌ Login error: ${decryptedMessage.errMessage}`);
+                        }
+                        break;
+                    case MobileLoginStatus.CLOSED_BROWSER:
+                        console.log("🔴 Browser closed!");
+                        break;
+                    default:
+                        console.warn("⚠️ Unknown login status received:", decryptedMessage);
+                }
+            } else {
+                console.error("❌ Unexpected response format for mobileLoginStatus");
             }
         });
 
