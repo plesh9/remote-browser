@@ -1,4 +1,7 @@
+import {MobileCaptchaScreenshotEventArgs} from "./MobileCaptchaScreenshotEventArgs.ts";
+
 const IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
 
 export async function getCryptoKey(creatorId: string, userId: string): Promise<CryptoKey> {
     const keyString = `key_${creatorId}_${userId}`;
@@ -27,14 +30,28 @@ export const encryptMessage = async (message: object, creatorId: string, userId:
     return btoa(String.fromCharCode(...iv) + String.fromCharCode(...new Uint8Array(encrypted)));
 }
 
-export const decryptMessage = async (encryptedMessage: string, creatorId: string, userId: string): Promise<any> => {
-    const encryptedBuffer = Uint8Array.from(atob(encryptedMessage), (c) => c.charCodeAt(0));
+export const decryptMessage = async (encryptedBase64: string, creatorId: string, userId: string): Promise<MobileCaptchaScreenshotEventArgs> => {
+    const encryptedBuffer = Uint8Array.from(atob(encryptedBase64), (c) => c.charCodeAt(0));
 
     const iv = encryptedBuffer.subarray(0, IV_LENGTH);
-    const data = encryptedBuffer.subarray(IV_LENGTH);
+    const authTag = encryptedBuffer.subarray(encryptedBuffer.length - AUTH_TAG_LENGTH);
+    const encryptedData = encryptedBuffer.subarray(IV_LENGTH, encryptedBuffer.length - AUTH_TAG_LENGTH);
 
     const key = await getCryptoKey(creatorId, userId);
-    const decrypted = await window.crypto.subtle.decrypt({name: "AES-GCM", iv}, key, data);
 
-    return JSON.parse(new TextDecoder().decode(decrypted));
-}
+    const encryptedWithTag = new Uint8Array(encryptedData.length + authTag.length);
+    encryptedWithTag.set(encryptedData, 0);
+    encryptedWithTag.set(authTag, encryptedData.length);
+
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+        {name: "AES-GCM", iv},
+        key,
+        encryptedWithTag
+    );
+
+    const decryptedText = new TextDecoder().decode(decryptedBuffer);
+    console.log("🔓 Decrypted Data:", decryptedText);
+
+    return JSON.parse(decryptedText);
+};
+

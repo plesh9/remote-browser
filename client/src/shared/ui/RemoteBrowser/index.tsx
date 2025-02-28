@@ -1,12 +1,9 @@
 import React, {useEffect, useRef, useState} from "react";
 import {io, Socket} from "socket.io-client";
 import {WS_EVENTS} from "../../ws/wsEvents.ts";
-import {MobileCaptchaScreenshotEventArgs} from "../../MobileCaptchaScreenshotEventArgs.ts";
 import {MobileLoginStatus} from "../../MobileLoginStatus.ts";
 import {MobileMouseEvent} from "../../types/MobileMouseActionInput.ts";
-import {encryptMessage} from "../../aes.ts";
-
-// const WINDOW_SIZE = {width: 375, height: 667};
+import {decryptMessage, encryptMessage} from "../../aes.ts";
 
 const RemoteBrowser: React.FC = () => {
     const [connected, setConnected] = useState(false);
@@ -59,21 +56,16 @@ const RemoteBrowser: React.FC = () => {
             });
         });
 
-        socketRef.current.on(WS_EVENTS.mobileCaptchaScreenshot, async (message: MobileCaptchaScreenshotEventArgs) => {
+        socketRef.current.on(WS_EVENTS.mobileCaptchaScreenshot, async (message) => {
             try {
-                if (!message.image) {
-                    console.error("No image received in the WebSocket message!");
-                    return;
-                }
-
-                const imageBlob = await fetch(`data:image/png;base64,${message.image}`).then(res => res.blob());
-
+                const decryptedMessage = await decryptMessage(message, creatorId, userId);
+                const imageBlob = await fetch(`data:${decryptedMessage.contentType};base64,${decryptedMessage.image}`).then(res => res.blob());
                 const imageBitmap = await createImageBitmap(imageBlob);
 
                 setScreenshotData({
                     imageBitmap,
-                    width: Number(message.screenshotWidth),
-                    height: Number(message.screenshotHeight),
+                    width: Number(decryptedMessage.screenshotWidth),
+                    height: Number(decryptedMessage.screenshotHeight),
                 });
             } catch (error) {
                 console.error("Failed to process screenshot:", error);
@@ -102,9 +94,6 @@ const RemoteBrowser: React.FC = () => {
             setConnected(false);
             socketRef.current = null;
         });
-        // } else {
-        //   alert(`Error: ${data.error}`);
-        // }
     };
 
     const handleMouseAction = async (type: MobileMouseEvent.CLICK, e: React.MouseEvent) => {
