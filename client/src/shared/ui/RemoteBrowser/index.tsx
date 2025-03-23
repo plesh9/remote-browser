@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 
-const WINDOW_SIZE = { width: 375, height: 667 };
 const ONLYFANS_URL = "https://onlyfans.com/";
 const CRYPTO_KEY = "8gkL1@6z4mF0Q9$Pb2rXnC5Vd7jW3E0Q";
 const SCREENSHOT_MESSAGE_TYPE = "kL3pRx";
@@ -52,14 +51,22 @@ const RemoteBrowser: React.FC = () => {
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [imageBitmap, setImageBitmap] = useState<ImageBitmap | null>(null);
+  const [screenshotData, setScreenshotData] = useState<{
+    imageBitmap: ImageBitmap;
+    width: number;
+    height: number;
+  } | null>(null);
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
 
   const handleConnect = async () => {
     const response = await fetch("http://localhost:4000/api/open-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: ONLYFANS_URL }),
+      body: JSON.stringify({
+        url: ONLYFANS_URL,
+        deviceWidth: window.innerWidth,
+        deviceHeight: window.innerHeight,
+      }),
     });
     const data = await response.json();
     if (response.ok) {
@@ -81,7 +88,9 @@ const RemoteBrowser: React.FC = () => {
               console.warn("Crypto key not loaded yet");
               return;
             }
-            const encryptedBuffer = base64ToArrayBuffer(message.data);
+            const base64Data = message.data.screenshot;
+
+            const encryptedBuffer = base64ToArrayBuffer(base64Data);
             const decryptedBuffer = await decryptData(
               encryptedBuffer,
               cryptoKey
@@ -90,7 +99,11 @@ const RemoteBrowser: React.FC = () => {
               type: "image/png",
             });
             const imageBitmap = await createImageBitmap(decryptedBlob);
-            setImageBitmap(imageBitmap);
+            setScreenshotData({
+              imageBitmap,
+              width: message.data.width,
+              height: message.data.height,
+            });
           }
         } catch (err) {
           console.error("Error parsing WebSocket message:", err);
@@ -180,7 +193,7 @@ const RemoteBrowser: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!imageBitmap) return;
+    if (!screenshotData) return;
 
     const drawImageOnCanvas = (imageBitmap: ImageBitmap) => {
       const canvas = canvasRef.current;
@@ -191,14 +204,16 @@ const RemoteBrowser: React.FC = () => {
 
       canvas.width = imageBitmap.width;
       canvas.height = imageBitmap.height;
+      canvas.style.width = `${screenshotData.width}px`;
+      canvas.style.height = `${screenshotData.height}px`;
 
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(imageBitmap, 0, 0);
     };
 
-    drawImageOnCanvas(imageBitmap);
-  }, [imageBitmap]);
+    drawImageOnCanvas(screenshotData?.imageBitmap);
+  }, [screenshotData]);
 
   return (
     <div
@@ -217,13 +232,11 @@ const RemoteBrowser: React.FC = () => {
           Login
         </button>
       </div>
-      {imageBitmap && (
+      {screenshotData && (
         <canvas
           ref={canvasRef}
           style={{
             position: "relative",
-            width: WINDOW_SIZE.width,
-            height: WINDOW_SIZE.height,
             backgroundColor: "rgb(98, 98, 98)",
             borderRadius: "12px",
             overflow: "hidden",

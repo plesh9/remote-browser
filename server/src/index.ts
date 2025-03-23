@@ -32,14 +32,14 @@ app.use(cors());
 app.use(bodyParser.json());
 
 app.post("/api/open-url", async (req: any, res: any) => {
-  const { url } = req.body;
+  const { url, deviceWidth, deviceHeight } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: "URL is required" });
   }
 
   try {
-    await browserManager.launchBrowser(url);
+    await browserManager.launchBrowser({ url, deviceWidth, deviceHeight });
     res.json({ message: "Browser launched successfully" });
   } catch (error) {
     console.error(error);
@@ -56,24 +56,49 @@ function compareUint8Arrays(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 wss.on("connection", (ws) => {
-  let lastScreenshot: Uint8Array | null = null;
+  let lastScreenshot: {
+    screenshotBuffer: Uint8Array;
+    screenshotWidth: number;
+    screenshotHeight: number;
+  } | null = null;
 
   const sendScreenshot = async () => {
-    const screenshot: Uint8Array | null = await browserManager.getScreenshot();
-    if (screenshot && ws.readyState === ws.OPEN) {
-      if (lastScreenshot && compareUint8Arrays(lastScreenshot, screenshot)) {
+    const screenshotData = await browserManager.getScreenshot();
+
+    
+
+    if (screenshotData && ws.readyState === ws.OPEN) {
+      console.log("Sending screenshot", screenshotData?.screenshotHeight);
+
+      if (
+        lastScreenshot &&
+        compareUint8Arrays(
+          lastScreenshot.screenshotBuffer,
+          screenshotData.screenshotBuffer
+        )
+      ) {
         return;
       }
-      lastScreenshot = screenshot;
-      const encryptedScreenshot = encryptBuffer(Buffer.from(screenshot));
+
+      lastScreenshot = screenshotData;
+      const encryptedScreenshot = encryptBuffer(
+        Buffer.from(screenshotData.screenshotBuffer)
+      );
       const base64Data = encryptedScreenshot.toString("base64");
       ws.send(
-        JSON.stringify({ type: SCREENSHOT_MESSAGE_TYPE, data: base64Data })
+        JSON.stringify({
+          type: SCREENSHOT_MESSAGE_TYPE,
+          data: {
+            screenshot: base64Data,
+            width: screenshotData.screenshotWidth,
+            height: screenshotData.screenshotHeight,
+          },
+        })
       );
     }
   };
 
-  const interval = setInterval(sendScreenshot, 30);
+  const interval = setInterval(sendScreenshot, 200);
 
   ws.on("message", async (message) => {
     try {
